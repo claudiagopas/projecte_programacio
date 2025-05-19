@@ -1,0 +1,54 @@
+
+from abc import ABC, abstractmethod
+import csv
+import numpy as np
+from typing import List, Dict, Tuple, Union
+
+class Recomanador(ABC):
+    def __init__(self, dades: Dades):
+        self._dades = dades
+
+    @abstractmethod
+    def recomana(self, user_id: int, n: int):
+        pass
+
+
+class RecomanadorSimple(Recomanador):
+    def __init__(self, dades: Dades, min_vots: int = 3):
+        super().__init__(dades)
+        self._min_vots = min_vots
+
+    def recomana(self, user_id: int, n: int = 5):
+        valoracions = self._dades.valoracions
+        items = self._dades.items
+        items_valorats = {item_id for (uid, item_id), v in valoracions.items() if uid == user_id}
+
+        item_valoracions = {}
+        for (uid, item_id), v in valoracions.items():
+            if v > 0:
+                item_valoracions.setdefault(item_id, []).append(v)
+
+        item_avg_valids = [np.mean(votes) for item, votes in item_valoracions.items() if len(votes) >= self._min_vots]
+        if not item_avg_valids:
+            print("No hi ha prou dades per fer recomanacions.")
+            return []
+
+        avg_global = np.mean(item_avg_valids)
+
+        puntuacions = []
+        for item in items:
+            item_id = item.get_id()
+            if item_id in items_valorats:
+                continue
+            vots = item_valoracions.get(item_id, [])
+            num_vots = len(vots)
+            if num_vots < self._min_vots:
+                continue
+            avg_item = np.mean(vots)
+            score = (num_vots / (num_vots + self._min_vots)) * avg_item + (self._min_vots / (num_vots + self._min_vots)) * avg_global
+            puntuacions.append((item, score))
+
+        puntuacions.sort(key=lambda x: x[1], reverse=True)
+        return puntuacions[:n]
+
+
